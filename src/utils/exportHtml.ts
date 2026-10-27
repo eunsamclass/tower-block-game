@@ -1,0 +1,590 @@
+import { TOWER_BLOCKS, DEFAULT_MISSION_SENTENCES } from './towerGrid';
+
+/**
+ * Generates a fully self-contained standalone Single HTML File
+ * containing CSS, HTML, JavaScript, Web Audio API, and game logic
+ * so teachers can run the game completely offline from a single file!
+ */
+export function generateStandaloneHtml(currentSentences = DEFAULT_MISSION_SENTENCES): string {
+  const blocksJson = JSON.stringify(TOWER_BLOCKS);
+  const sentencesJson = JSON.stringify(currentSentences);
+
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tower Blocks Game - 타워 블록 게임</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      background: white;
+      border-bottom: 2px solid #e2e8f0;
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: #0f172a;
+    }
+    .brand-icon {
+      background: #3b82f6;
+      color: white;
+      padding: 6px 10px;
+      border-radius: 8px;
+    }
+    .turn-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 9999px;
+      font-weight: 700;
+      font-size: 1rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.02); }
+    }
+    .header-btns {
+      display: flex;
+      gap: 8px;
+    }
+    button {
+      cursor: pointer;
+      font-family: inherit;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      transition: all 0.15s ease;
+    }
+    button:active { transform: scale(0.96); }
+    .btn-secondary {
+      background: #f1f5f9;
+      color: #475569;
+    }
+    .btn-secondary:hover { background: #e2e8f0; }
+    .btn-primary {
+      background: #2563eb;
+      color: white;
+    }
+    .btn-primary:hover { background: #1d4ed8; }
+
+    /* Main layout */
+    main {
+      flex: 1;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 1600px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    /* Dice & Mission Card */
+    .mission-bar {
+      background: white;
+      border-radius: 16px;
+      padding: 16px 20px;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -2px rgba(0,0,0,0.05);
+      border: 2px solid #e2e8f0;
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 20px;
+    }
+    .dice-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 8px;
+    }
+    .dice-box {
+      width: 64px;
+      height: 64px;
+      background: #ffffff;
+      border: 3px solid #0f172a;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+      font-weight: 900;
+      box-shadow: 0 4px 0 #0f172a;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+    .dice-box:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #0f172a; }
+    .dice-selectors {
+      display: flex;
+      gap: 4px;
+    }
+    .dice-sel-btn {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 1px solid #cbd5e1;
+      background: #f8fafc;
+      font-size: 0.85rem;
+      font-weight: 700;
+      padding: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .dice-sel-btn.active {
+      background: #2563eb;
+      color: white;
+      border-color: #1d4ed8;
+    }
+
+    .mission-text {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .q-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .a-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    .label-badge {
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 6px;
+      color: white;
+    }
+    .bg-q { background: #3b82f6; }
+    .bg-a { background: #10b981; }
+    .en-sentence { font-size: 1.25rem; font-weight: 800; color: #0f172a; }
+    .ko-sentence { font-size: 0.95rem; color: #64748b; font-weight: 500; }
+
+    /* Boards Area */
+    .boards-grid {
+      display: grid;
+      gap: 16px;
+      flex: 1;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      align-items: stretch;
+    }
+    .team-tower-card {
+      background: white;
+      border: 3px solid #e2e8f0;
+      border-radius: 16px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+      position: relative;
+      overflow: hidden;
+    }
+    .team-tower-card.active-turn {
+      border-color: currentColor;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2), 0 8px 16px rgba(0,0,0,0.1);
+    }
+    .tower-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 8px;
+      margin-bottom: 8px;
+      border-bottom: 2px dashed #e2e8f0;
+    }
+    .team-title {
+      font-size: 1.1rem;
+      font-weight: 800;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tower-finish-line {
+      background: linear-gradient(135deg, #38bdf8, #0284c7);
+      color: white;
+      text-align: center;
+      padding: 6px;
+      border-radius: 8px;
+      font-weight: 800;
+      font-size: 0.9rem;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .tower-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      flex: 1;
+      background: #f1f5f9;
+      padding: 8px;
+      border-radius: 10px;
+      border: 2px solid #cbd5e1;
+    }
+    .tower-row {
+      display: grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap: 4px;
+      height: 36px;
+    }
+    .tower-block {
+      border-radius: 6px;
+      background: #ffffff;
+      border: 2px solid #94a3b8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      font-weight: 800;
+      color: #334155;
+      cursor: pointer;
+      position: relative;
+      transition: all 0.15s ease;
+      box-shadow: inset 0 -2px 0 rgba(0,0,0,0.1);
+    }
+    .tower-block:hover {
+      transform: translateY(-1px);
+    }
+    .tower-block.placeable {
+      border-color: #2563eb;
+      background: #dbeafe;
+      color: #1e40af;
+      box-shadow: 0 0 0 2px #3b82f6, 0 2px 4px rgba(37,99,235,0.3);
+      animation: bounceSmall 1.2s infinite;
+    }
+    @keyframes bounceSmall {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-3px); }
+    }
+    .tower-block.colored {
+      color: white;
+      font-weight: 900;
+      border-color: rgba(0,0,0,0.2);
+      box-shadow: inset 0 2px 0 rgba(255,255,255,0.4), inset 0 -3px 0 rgba(0,0,0,0.25);
+    }
+    .tower-start-line {
+      background: #22c55e;
+      color: white;
+      text-align: center;
+      padding: 6px;
+      border-radius: 8px;
+      font-weight: 800;
+      font-size: 0.85rem;
+      margin-top: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 100;
+    }
+    .modal-box {
+      background: white;
+      border-radius: 20px;
+      max-width: 500px;
+      width: 100%;
+      padding: 24px;
+      box-shadow: 0 20px 25px -5px rgba(0,0,0,0.2);
+    }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <div class="brand-icon">🏰</div>
+      <span>Tower Blocks Game</span>
+    </div>
+    <div id="turnBadge" class="turn-badge" style="background:#fee2e2; color:#b91c1c;">
+      <span>🦁 Team 1의 차례!</span>
+    </div>
+    <div class="header-btns">
+      <button class="btn-secondary" onclick="app.passTurn()">턴 넘기기 ➡️</button>
+      <button class="btn-secondary" onclick="app.resetGame()">새 게임 🔄</button>
+    </div>
+  </header>
+
+  <main>
+    <div class="mission-bar">
+      <div class="dice-container">
+        <div id="diceDisplay" class="dice-box" onclick="app.rollDice()">🎲</div>
+        <div class="dice-selectors">
+          <button class="dice-sel-btn" onclick="app.selectDice(1)">1</button>
+          <button class="dice-sel-btn" onclick="app.selectDice(2)">2</button>
+          <button class="dice-sel-btn" onclick="app.selectDice(3)">3</button>
+          <button class="dice-sel-btn" onclick="app.selectDice(4)">4</button>
+          <button class="dice-sel-btn" onclick="app.selectDice(5)">5</button>
+          <button class="dice-sel-btn" onclick="app.selectDice(6)">6</button>
+        </div>
+      </div>
+      <div class="mission-text">
+        <div class="q-row">
+          <span class="label-badge bg-q">Q</span>
+          <span id="missionQEn" class="en-sentence">Roll the dice to start!</span>
+          <span id="missionQKo" class="ko-sentence">(주사위를 굴려주세요)</span>
+        </div>
+        <div class="a-row">
+          <span class="label-badge bg-a">A</span>
+          <span id="missionAEn" class="en-sentence">Say the English sentence!</span>
+          <span id="missionAKo" class="ko-sentence">(문장을 큰 소리로 읽어보세요)</span>
+        </div>
+      </div>
+      <div>
+        <button class="btn-primary" style="padding: 10px 18px;" onclick="app.speakCurrent()">🔊 읽기 (TTS)</button>
+      </div>
+    </div>
+
+    <div id="boardsContainer" class="boards-grid"></div>
+  </main>
+
+  <div id="winModal" class="modal-overlay hidden">
+    <div class="modal-box" style="text-align: center;">
+      <div style="font-size: 4rem; margin-bottom: 12px;">🏆</div>
+      <h2 id="winTitle" style="font-size: 1.8rem; font-weight: 800; margin-bottom: 8px;">축하합니다!</h2>
+      <p id="winDesc" style="color: #64748b; font-size: 1.1rem; margin-bottom: 24px;">타워의 꼭대기에 도달했습니다!</p>
+      <button class="btn-primary" style="font-size: 1.1rem; padding: 12px 28px;" onclick="app.resetGame()">다시 플레이하기</button>
+    </div>
+  </div>
+
+  <script>
+    const BLOCKS = ${blocksJson};
+    const SENTENCES = ${sentencesJson};
+    const TEAM_PRESETS = [
+      { name: 'Red Team (빨강팀)', color: '#EF4444', emoji: '🦁' },
+      { name: 'Blue Team (파랑팀)', color: '#3B82F6', emoji: '🐬' },
+      { name: 'Yellow Team (노랑팀)', color: '#EAB308', emoji: '🐯' },
+      { name: 'Green Team (초록팀)', color: '#10B981', emoji: '🦖' }
+    ];
+
+    class GameApp {
+      constructor() {
+        this.teams = TEAM_PRESETS.map((p, idx) => ({
+          id: idx,
+          name: p.name,
+          color: p.color,
+          emoji: p.emoji,
+          coloredBlocks: []
+        }));
+        this.currentTeamIndex = 0;
+        this.currentDice = 1;
+        this.init();
+      }
+
+      init() {
+        this.renderMission();
+        this.renderBoards();
+        this.updateTurnBadge();
+      }
+
+      updateTurnBadge() {
+        const team = this.teams[this.currentTeamIndex];
+        const badge = document.getElementById('turnBadge');
+        badge.style.background = team.color + '22';
+        badge.style.color = team.color;
+        badge.innerHTML = '<span>' + team.emoji + ' ' + team.name + '의 차례!</span>';
+      }
+
+      rollDice() {
+        const diceBox = document.getElementById('diceDisplay');
+        diceBox.style.transform = 'rotate(360deg)';
+        setTimeout(() => {
+          diceBox.style.transform = 'none';
+          const roll = Math.floor(Math.random() * 6) + 1;
+          this.selectDice(roll);
+        }, 200);
+      }
+
+      selectDice(num) {
+        this.currentDice = num;
+        document.getElementById('diceDisplay').innerText = num;
+        document.querySelectorAll('.dice-sel-btn').forEach(btn => {
+          btn.classList.toggle('active', parseInt(btn.innerText) === num);
+        });
+        this.renderMission();
+        this.renderBoards();
+      }
+
+      renderMission() {
+        const sentence = SENTENCES.find(s => s.dice === this.currentDice) || SENTENCES[0];
+        document.getElementById('missionQEn').innerText = sentence.questionEn;
+        document.getElementById('missionQKo').innerText = sentence.questionKo;
+        document.getElementById('missionAEn').innerText = sentence.answerEn;
+        document.getElementById('missionAKo').innerText = sentence.answerKo;
+      }
+
+      speakCurrent() {
+        if (!('speechSynthesis' in window)) return;
+        const sentence = SENTENCES.find(s => s.dice === this.currentDice) || SENTENCES[0];
+        const u = new SpeechSynthesisUtterance(sentence.questionEn + ' ' + sentence.answerEn);
+        u.lang = 'en-US';
+        u.rate = 0.88;
+        window.speechSynthesis.speak(u);
+      }
+
+      isSupported(block, coloredIds) {
+        if (block.row === 0) return true;
+        const belowBlocks = BLOCKS.filter(b => b.row === block.row - 1);
+        return belowBlocks.some(lower => {
+          if (!coloredIds.includes(lower.id)) return false;
+          return Math.max(block.col, lower.col) < Math.min(block.col + block.colSpan, lower.col + lower.colSpan);
+        });
+      }
+
+      handleBlockClick(teamIdx, block) {
+        if (teamIdx !== this.currentTeamIndex) {
+          alert('현재 턴인 팀(' + this.teams[this.currentTeamIndex].name + ')의 타워를 클릭해주세요!');
+          return;
+        }
+        const team = this.teams[teamIdx];
+        if (team.coloredBlocks.includes(block.id)) return;
+
+        if (!this.isSupported(block, team.coloredBlocks)) {
+          alert('아래층 지지대를 먼저 쌓아야 합니다! 공중에 띄울 수 없습니다.');
+          return;
+        }
+
+        if (this.currentDice !== 6 && block.num !== this.currentDice) {
+          alert('주사위 눈금 (' + this.currentDice + '번)과 일치하는 블록을 선택해 주세요!');
+          return;
+        }
+
+        team.coloredBlocks.push(block.id);
+        this.renderBoards();
+
+        // Check victory
+        if (block.row === 9) {
+          document.getElementById('winTitle').innerText = '🏆 ' + team.name + ' 승리!';
+          document.getElementById('winDesc').innerText = '가장 먼저 타워 꼭대기에 도달했습니다!';
+          document.getElementById('winModal').classList.remove('hidden');
+          return;
+        }
+
+        // Pass to next team
+        this.passTurn();
+      }
+
+      passTurn() {
+        this.currentTeamIndex = (this.currentTeamIndex + 1) % this.teams.length;
+        this.updateTurnBadge();
+        this.renderBoards();
+      }
+
+      resetGame() {
+        this.teams.forEach(t => t.coloredBlocks = []);
+        this.currentTeamIndex = 0;
+        this.currentDice = 1;
+        document.getElementById('winModal').classList.add('hidden');
+        this.init();
+      }
+
+      renderBoards() {
+        const container = document.getElementById('boardsContainer');
+        container.innerHTML = '';
+
+        this.teams.forEach((team, tIdx) => {
+          const isActive = tIdx === this.currentTeamIndex;
+          const card = document.createElement('div');
+          card.className = 'team-tower-card' + (isActive ? ' active-turn' : '');
+          card.style.color = team.color;
+
+          // Header
+          const header = document.createElement('div');
+          header.className = 'tower-header';
+          header.innerHTML = '<span class="team-title">' + team.emoji + ' ' + team.name + '</span><span>' + team.coloredBlocks.length + ' 블록</span>';
+          card.appendChild(header);
+
+          // Finish Line
+          const finish = document.createElement('div');
+          finish.className = 'tower-finish-line';
+          finish.innerHTML = '🏆 FINISH (TOP)';
+          card.appendChild(finish);
+
+          // Grid (Rows from 9 down to 0)
+          const grid = document.createElement('div');
+          grid.className = 'tower-grid';
+
+          for (let r = 9; r >= 0; r--) {
+            const rowDiv = document.createElement('div');
+            rowDiv.className = 'tower-row';
+
+            const rowBlocks = BLOCKS.filter(b => b.row === r);
+            rowBlocks.forEach(b => {
+              const bDiv = document.createElement('div');
+              bDiv.className = 'tower-block';
+              bDiv.style.gridColumn = (b.col + 1) + ' / span ' + b.colSpan;
+              bDiv.innerText = b.num;
+
+              const isColored = team.coloredBlocks.includes(b.id);
+              const supported = this.isSupported(b, team.coloredBlocks);
+              const placeable = isActive && !isColored && supported && (this.currentDice === 6 || b.num === this.currentDice);
+
+              if (isColored) {
+                bDiv.classList.add('colored');
+                bDiv.style.background = team.color;
+              } else if (placeable) {
+                bDiv.classList.add('placeable');
+              }
+
+              bDiv.onclick = () => this.handleBlockClick(tIdx, b);
+              rowDiv.appendChild(bDiv);
+            });
+
+            grid.appendChild(rowDiv);
+          }
+          card.appendChild(grid);
+
+          // Start Line
+          const start = document.createElement('div');
+          start.className = 'tower-start-line';
+          start.innerHTML = '🏁 START (GROUND)';
+          card.appendChild(start);
+
+          container.appendChild(card);
+        });
+      }
+    }
+
+    const app = new GameApp();
+  </script>
+</body>
+</html>`;
+}

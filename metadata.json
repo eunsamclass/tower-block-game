@@ -1,0 +1,6 @@
+{
+  "name": "Tower Blocks Game - 타워 블록 게임",
+  "description": "초등학교 영어 수업용 웹 기반 타워 블록 게임. 주사위를 굴려 미래 계획 표현을 연습하고 타워를 쌓아 올리는 팀 대항 게임입니다.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
